@@ -1,5 +1,3 @@
-version : '3.8'
-
 services:
   nifi:
     image: apache/nifi:latest
@@ -10,11 +8,11 @@ services:
       - NIFI_WEB_HTTPS_PORT=8443
       - NIFI_WEB_HTTPS_HOST=0.0.0.0
       - SINGLE_USER_CREDENTIALS_USERNAME=admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=adminadminadmin
     volumes:
-      - nifi_conf:/opt/nifi/nifi_current/conf
-      - nifi_logs:/opt/nifi/nifi_current/logs
-      - nifi_data:/opt/nifi_nifi_current/database_repository
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_logs:/opt/nifi/nifi-current/logs
+      - nifi_data:/opt/nifi/nifi-current/database_repository
       - nifi_flowfile:/opt/nifi/nifi-current/flowfile_repository
       - nifi_content:/opt/nifi/nifi-current/content_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
@@ -22,11 +20,12 @@ services:
       - pipeline-network
 
 volumes:
-  nifi_conf
-  nifi_logs
-  nifi_flowfile
-  nifi_content
-  nifi_provenance
+  nifi_conf:
+  nifi_logs:
+  nifi_data:
+  nifi_flowfile:
+  nifi_content:
+  nifi_provenance:
 
 networks:
   pipeline-network:
