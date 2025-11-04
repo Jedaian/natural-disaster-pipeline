@@ -67,6 +67,45 @@ services:
     depends_on:
       - redpanda
 
+  spark-master:
+    image: apache/spark:3.4.0
+    container_name: spark-master
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-master.sh &&
+      tail -f /opt/spark/logs/spark--org.apache.spark.deploy.master.Master-*.out
+      "
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    ports:
+      - "8080:8080" #Spark Webserver UI
+      - "7077:7077" #Spark Master Port
+    volumes:
+      - ./spark-apps:/opt/spark-apps
+      - ./spark-data:/opt/spark-data
+    networks:
+      - pipeline-network
+
+  spark-worker:
+    image: apache/spark:3.4.0
+    container_name: spark-worker
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+      tail -f /opt/spark/logs/spark--org.apache.spark.deploy.worker.Worker-*.out
+      "
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+    volumes:
+      - ./spark-apps:/opt/spark-apps
+      - ./spark-data:/opt/spark-data
+    networks:
+      - pipeline-network
+    depends_on:
+      - spark-master
+
 volumes:
   nifi_conf:
   nifi_logs:
