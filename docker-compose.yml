@@ -106,6 +106,20 @@ services:
     depends_on:
       - spark-master
 
+  dbt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dbt-custom:1.10.0
+    container_name: dbt
+    working_dir: /usr/app/dbt
+    volumes:
+      - ./dbt:/usr/app/dbt
+      - ./spark-data:/usr/app/data
+    networks:
+      - pipeline-network
+    entrypoint: ["/bin/bash", "-c", "tail -f /dev/null"]
+
 volumes:
   nifi_conf:
   nifi_logs:
