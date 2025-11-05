@@ -1,7 +1,9 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, current_timestamp, from_json, explode, length, split, size
+from pyspark.sql.functions import (
+    col, lit, current_timestamp, from_json, explode, length, from_csv, to_date, regexp_replace, trim, split
+)
 from pyspark.sql.types import (
-    StructType, StructField, DoubleType, StringType, DateType, ArrayType, LongType, IntegerType
+    StructType, StructField, DoubleType, StringType, ArrayType, LongType, IntegerType
 )
 from datetime import datetime
 
@@ -22,7 +24,7 @@ fires_schema = StructType([
     StructField("bright_ti4", DoubleType(), True),
     StructField("scan", DoubleType(), True),
     StructField("track", DoubleType(), True),
-    StructField("acq_date", DateType(), True),
+    StructField("acq_date", StringType(), True),
     StructField("acq_time", StringType(), True),
     StructField("satellite", StringType(), True),
     StructField("instrument", StringType(), True),
@@ -74,35 +76,24 @@ earthquakes_schema = StructType([
 
 fires_stream = spark.readStream \
     .format("kafka") \
-    .option("kafka.bootstrap.servers", 'redpanda:9092') \
+    .option("kafka.bootstrap.servers", "redpanda:9092") \
     .option("subscribe", "fires-topic") \
     .option("startingOffsets", "earliest") \
+    .option("kafka.group.id", "fire_stream_consumer") \
     .option("failOnDataLoss", "false") \
     .load()
 
 fires_df = fires_stream \
     .selectExpr("CAST(value AS STRING) as value") \
     .filter(col("value").isNotNull()) \
-    .filter(~col("value").startswith("latitude")) \
-    .filter(length(col("value")) > 10) \
-    .select(split(col("value"), ",").alias("fields")) \
-    .filter(size(col("fields")) == 13) \
-    .select(
-        col("fields")[0].cast(DoubleType()).alias("latitude"),
-        col("fields")[1].cast(DoubleType()).alias("longitude"),
-        col("fields")[2].cast(DoubleType()).alias("brightness"),
-        col("fields")[3].cast(DoubleType()).alias("scan"),
-        col("fields")[4].cast(DoubleType()).alias("track"),
-        col("fields")[5].alias("acq_date"),
-        col("fields")[6].alias("acq_time"),
-        col("fields")[7].alias("satellite"),
-        col("fields")[8].alias("confidence"),
-        col("fields")[9].alias("version"),
-        col("fields")[10].cast(DoubleType()).alias("bright_t31"),
-        col("fields")[11].cast(DoubleType()).alias("frp"),
-        col("fields")[12].alias("daynight")
-    ) \
-    .filter(col("latitude").isNotNull() & col("longitude").isNotNull()) \
+    .withColumn("clean_value", trim(regexp_replace(col("value"), r'[\r"]', ""))) \
+    .withColumn("lines", split(col("clean_value"), "\n")) \
+    .withColumn("line", explode(col("lines"))) \
+    .filter(~col("line").startswith("latitude")) \
+    .filter(length(col("line")) > 10) \
+    .withColumn("parsed", from_csv(col("line"), fires_schema.simpleString())) \
+    .select("parsed.*") \
+    .withColumn("acq_date", to_date(col("acq_date"), "yyyy-MM-dd")) \
     .withColumn("event_type", lit("fire")) \
     .withColumn("timestamp", current_timestamp()) \
     .withWatermark("timestamp", "15 minutes")
@@ -142,6 +133,7 @@ def writes_fire_batch(df, batch_id):
     df.write \
         .mode("append") \
         .partitionBy("acq_date") \
+        .option("compression", "none") \
         .parquet("/opt/spark-data/fires") \
 
 fires_query = fires_df \
@@ -151,7 +143,7 @@ fires_query = fires_df \
     .trigger(processingTime='30 seconds') \
     .start()
 
-def writes_fire_batch(df, batch_id):
+def writes_earthquake_batch(df, batch_id):
     print_batch_info(df, batch_id)
     df.write \
         .mode("append") \
@@ -160,7 +152,7 @@ def writes_fire_batch(df, batch_id):
 
 earthquakes_query = earthquakes_df \
     .writeStream \
-    .foreachBatch(writes_fire_batch) \
+    .foreachBatch(writes_earthquake_batch) \
     .option("checkpointLocation", "/opt/spark-data/checkpoints/earthquakes") \
     .trigger(processingTime='30 seconds') \
     .start()
