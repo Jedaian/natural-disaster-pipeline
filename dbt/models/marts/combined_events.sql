@@ -4,9 +4,9 @@ WITH fires AS (
     SELECT 
         latitude,
         longitude,
-        'fire' as event_type,
-        acq_date as event_date,
-        brightness as intensity_measure
+        'fire' AS event_type,
+        bright_ti4 AS intensity_measure,
+        acq_timestamp AS event_timestamp
     FROM {{ ref('stg_fires') }}
 ),
 earthquakes AS (
@@ -14,8 +14,8 @@ earthquakes AS (
         latitude,
         longitude,
         'earthquake' as event_type,
-        CAST(time AS DATE) as event_date,
-        mag as intensity_measure
+        magnitude AS intensity_measure,
+        timestamp AS event_timestamp
     FROM {{ ref('stg_earthquakes') }}
 )
 

@@ -3,8 +3,8 @@
 SELECT
   latitude,
   longitude,
-  acq_date,
-  acq_time,
+  bright_ti4,
+  timestamp AS acq_timestamp,
   satellite,
   confidence,
   frp AS fire_radioactive_power,
