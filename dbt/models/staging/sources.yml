@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: raw_events
+    description: Raw event data from Parquet files
+    tables:
+      - name: fires
+        description: Fire hotspot data from NASA FIRMS API
+        meta:
+          external_location: "read_parquet('/usr/app/data/fires/**/*.parquet')"
+      
+      - name: earthquakes
+        description: Earthquake data from USGS API
+        meta:
+          external_location: "read_parquet('/usr/app/data/earthquakes/**/*.parquet')"

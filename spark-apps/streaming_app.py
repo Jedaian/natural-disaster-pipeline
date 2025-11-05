@@ -77,6 +77,7 @@ fires_stream = spark.readStream \
     .option("kafka.bootstrap.servers", 'redpanda:9092') \
     .option("subscribe", "fires-topic") \
     .option("startingOffsets", "earliest") \
+    .option("failOnDataLoss", "false") \
     .load()
 
 fires_df = fires_stream \
@@ -111,6 +112,7 @@ earthquakes_stream = spark.readStream\
     .option("kafka.bootstrap.servers", 'redpanda:9092') \
     .option("subscribe", "earthquakes-topic") \
     .option("startingOffsets", "earliest") \
+    .option("failOnDataLoss", "false") \
     .load()
 
 earthquakes_df = earthquakes_stream \
@@ -119,6 +121,8 @@ earthquakes_df = earthquakes_stream \
     .select(explode("data.features").alias("feature")) \
     .select(
         col("feature.properties.mag").alias("magnitude"),
+        col("feature.properties.place").alias("place"),
+        col("feature.properties.time").alias("time"),
         col("feature.geometry.coordinates")[0].alias("longitude"),
         col("feature.geometry.coordinates")[1].alias("latitude"),
         col("feature.geometry.coordinates")[2].alias('depth'),

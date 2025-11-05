@@ -1,2 +1,4 @@
-dbt/
+dbt/*.yml
+dbt/logs
+dbt/target
 spark-data/
