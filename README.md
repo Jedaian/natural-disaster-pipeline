@@ -1,5 +1,14 @@
 # Natural Events Real-Time Data Pipeline
 
+[![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-000?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org)
+[![Apache NiFi](https://img.shields.io/badge/Apache%20NiFi-003366?style=for-the-badge&logo=apache-nifi&logoColor=white)](https://nifi.apache.org)
+[![Apache Parquet](https://img.shields.io/badge/Apache%20Parquet-50A0FF?style=for-the-badge&logo=apache&logoColor=white)](https://parquet.apache.org)
+[![Apache Spark](https://img.shields.io/badge/Apache%20Spark-FDEE21?style=flat-square&logo=apachespark&logoColor=black)](https://spark.apache.org)
+[![dbt](https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&logo=dbt&logoColor=white)](https://www.getdbt.com)
+[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
+[![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?style=for-the-badge&logo=duckdb&logoColor=black)](https://duckdb.org)
+[![Redpanda](https://img.shields.io/badge/Redpanda-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
+
 A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark, and makes it queryable with DuckDB.
 
 ## What This Does
@@ -291,7 +300,7 @@ This is a learning project, so here are some ideas to extend it:
 
 ## License
 
-This is a learning project. Feel free to use and modify as you see fit.
+MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Notes
 
