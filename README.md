@@ -136,11 +136,16 @@ docker exec -it spark-master /opt/spark/bin/spark-submit \
 
 This will:
 - Consume messages from both Redpanda topics
-- Parse CSV (fires) and JSON (earthquakes)
-- Write to Parquet files every 30 seconds
+- Parse CSV (fires) and JSON (earthquakes) with robust data cleaning
+- Handle special characters and newlines in NASA FIRMS data using `from_csv`
+- Write to Parquet files every 30 seconds with no compression (ARM64 compatible)
+- Partition fire data by acquisition date for efficient querying
+- Monitor and display batch statistics (record count, sample data)
+- Use watermarks to handle late-arriving data (15 min for fires, 1 min for earthquakes)
+- Maintain checkpoints for fault tolerance
 - Run continuously until you stop it (Ctrl+C)
 
-You should see log output showing batches being processed.
+You should see log output showing batches being processed with record counts and sample data.
 
 ### 6. Transform Data with dbt
 
@@ -153,9 +158,10 @@ dbt run
 ```
 
 This creates:
-- Staging views that clean the raw data
-- Summary tables with aggregations
-- A combined events table with both fires and earthquakes
+- Staging views (`stg_fires`, `stg_earthquakes`) that clean and filter the raw Parquet data
+- Summary tables with aggregations by date, satellite, and confidence level
+- A combined events table with both fires and earthquakes for unified analysis
+- All models use optimized SQL with proper formatting for maintainability
 
 ### 7. Query the Data
 
@@ -197,10 +203,38 @@ con.execute("SELECT event_type, COUNT(*) FROM combined_events GROUP BY event_typ
 - Most events are small (magnitude < 3)
 
 **Processing:**
-- Spark reads from Kafka topics in micro-batches
-- Applies transformations (parsing, filtering nulls)
-- Writes to Parquet with proper data types
+- Spark reads from Kafka topics in micro-batches (30-second intervals)
+- Applies robust data cleaning (regex to remove special characters, trim whitespace)
+- Uses `from_csv` for NASA FIRMS data to handle embedded newlines correctly
+- Filters out header rows and empty lines
+- Converts date strings to proper date types
+- Writes to Parquet with no compression for ARM64 compatibility
+- Fire data partitioned by acquisition date for efficient querying
+- Checkpoints ensure fault tolerance and exactly-once semantics
 - dbt then aggregates this data for analysis
+
+## Technical Highlights
+
+**Advanced CSV Parsing for NASA FIRMS Data:**
+The NASA FIRMS API returns CSV data that contains embedded newlines within the data itself, which breaks standard CSV parsing. The Spark script handles this by:
+- Using regex to clean quotes and carriage returns from the raw data
+- Splitting on newlines and exploding into individual lines
+- Using `from_csv` with the defined schema instead of basic string splitting
+- Filtering out header rows and empty lines
+- This approach is more robust than standard CSV readers for messy real-world data
+
+**Data Partitioning Strategy:**
+- Fire data is partitioned by `acq_date` (acquisition date) in Parquet format
+- This creates a directory structure like `/fires/acq_date=2025-11-05/`
+- Enables efficient time-based queries without scanning all data
+- dbt and DuckDB can read specific partitions when filtering by date
+
+**Stream Processing Optimizations:**
+- RocksDB state store for Spark streaming checkpoints (better performance than default)
+- Adaptive query execution enabled for dynamic query optimization
+- Watermarks prevent unbounded state growth from late-arriving data (15 min for fires, 1 min for earthquakes)
+- `foreachBatch` provides batch-level monitoring and control
+- Batch info printed with record count and sample data for visibility
 
 ## Common Issues
 
@@ -210,8 +244,9 @@ con.execute("SELECT event_type, COUNT(*) FROM combined_events GROUP BY event_typ
 - Message size might be too large (increase with rpk topic alter-config)
 
 **Spark job fails with Snappy compression error:**
-- This is an M1 Mac issue
-- The code already has `compression=none` to work around it
+- This is an M1/M2 Mac (ARM64) issue with native compression libraries
+- The code already has `option("compression", "none")` to work around it
+- No compression slightly increases file size but ensures compatibility
 
 **No data in Parquet files:**
 - Check if NiFi is actually fetching data (view the queue)
