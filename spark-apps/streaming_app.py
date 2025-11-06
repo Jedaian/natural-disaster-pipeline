@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, lit, current_timestamp, from_json, explode, length, from_csv, to_date, regexp_replace, trim, split
+    col, lit, current_timestamp, from_json, explode, length, from_csv, to_date, regexp_replace, trim, split, from_unixtime, to_timestamp, concat_ws
 )
 from pyspark.sql.types import (
     StructType, StructField, DoubleType, StringType, ArrayType, LongType, IntegerType
@@ -96,7 +96,7 @@ fires_df = fires_stream \
     .withColumn("acq_date", to_date(col("acq_date"), "yyyy-MM-dd")) \
     .withColumn("event_type", lit("fire")) \
     .withColumn("timestamp", current_timestamp()) \
-    .withWatermark("timestamp", "15 minutes")
+    .withWatermark("timestamp", "1 hour")
 
 earthquakes_stream = spark.readStream\
     .format("kafka") \
@@ -116,11 +116,16 @@ earthquakes_df = earthquakes_stream \
         col("feature.properties.time").alias("time"),
         col("feature.geometry.coordinates")[0].alias("longitude"),
         col("feature.geometry.coordinates")[1].alias("latitude"),
-        col("feature.geometry.coordinates")[2].alias('depth'),
+        col("feature.geometry.coordinates")[2].alias("depth"),
         lit("earthquake").alias("event_type")
     ) \
-    .withColumn("timestamp", current_timestamp()) \
-    .withWatermark("timestamp", "1 minute")
+    .filter(col("time").isNotNull()) \
+    .filter(col("time") > 0) \
+    .withColumn("event_timestamp", from_unixtime(col("time") / 1000).cast("timestamp")) \
+    .filter(col("event_timestamp").isNotNull()) \
+    .withColumn("event_date", to_date(col("event_timestamp"))) \
+    .withColumn("processed_at", current_timestamp()) \
+    .withWatermark("event_timestamp", "10 minutes")
 
 def print_batch_info(df, batch_id):
     count = df.count()
@@ -147,6 +152,7 @@ def writes_earthquake_batch(df, batch_id):
     print_batch_info(df, batch_id)
     df.write \
         .mode("append") \
+        .partitionBy("event_date") \
         .option("compression", "none") \
         .parquet("/opt/spark-data/earthquakes") \
 
