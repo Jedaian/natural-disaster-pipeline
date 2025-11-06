@@ -3,7 +3,7 @@
 SELECT
     magnitude,
     place,
-    timestamp,
+    event_timestamp AS timestamp,
     longitude,
     latitude,
     depth,
