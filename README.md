@@ -27,12 +27,7 @@ The whole thing runs locally on Docker, which makes it perfect for learning how 
 ## Architecture
 
 Here's how data flows through the system:
-
-```
-NASA FIRMS API  ──┐
-                  ├──> NiFi ──> Redpanda ──> Spark ──> Parquet Files ──> dbt ──> DuckDB
-USGS Quake API ──┘
-```
+<image title="ETL Architecture" src="architecture/natural_events_architecture.png">
 
 **Why these tools?**
 
