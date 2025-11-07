@@ -1,15 +1,15 @@
 # Natural Events Real-Time Data Pipeline
 
-[![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-000?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org)
-[![Apache NiFi](https://img.shields.io/badge/Apache%20NiFi-003366?style=for-the-badge&logo=apache-nifi&logoColor=white)](https://nifi.apache.org)
-[![Apache Parquet](https://img.shields.io/badge/Apache%20Parquet-50A0FF?style=for-the-badge&logo=apache&logoColor=white)](https://parquet.apache.org)
-[![Apache Spark](https://img.shields.io/badge/Apache%20Spark-FDEE21?style=flat-square&logo=apachespark&logoColor=black)](https://spark.apache.org)
-[![Bruin](https://img.shields.io/badge/Bruin-4B8BF4?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSJ3aGl0ZSIgdmlld0JveD0iMCAwIDI0IDI0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xMiAyYTEwIDEwIDAgMSAwIDEwIDEwQTEwIDEwIDAgMCAwIDEyIDJaTTggOWwtMyAzbDMgM2wyLTIgMiAyIDMtMy0zLTNMMTAgMTFsLTItMnoiLz48L3N2Zz4%3D)](https://getbruin.com)
-[![dbt](https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&logo=dbt&logoColor=white)](https://www.getdbt.com)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
-[![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?style=for-the-badge&logo=duckdb&logoColor=black)](https://duckdb.org)
-[![Google BigQuery](https://img.shields.io/badge/BigQuery-4285F4?style=for-the-badge&logo=googlebigquery&logoColor=white)](https://cloud.google.com/bigquery)
-[![Redpanda](https://img.shields.io/badge/Redpanda-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
+[![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-3.7.0-000?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org)
+[![Apache NiFi](https://img.shields.io/badge/Apache%20NiFi-1.27.0-003366?style=for-the-badge&logo=apache-nifi&logoColor=white)](https://nifi.apache.org)
+[![Apache Parquet](https://img.shields.io/badge/Apache%20Parquet-latest-50A0FF?style=for-the-badge&logo=apache&logoColor=white)](https://parquet.apache.org)
+[![Apache Spark](https://img.shields.io/badge/Apache%20Spark-3.5.1-FDEE21?style=for-the-badge&logo=apachespark&logoColor=black)](https://spark.apache.org)
+[![Bruin](https://img.shields.io/badge/Bruin-latest-4B8BF4?style=for-the-badge)](https://getbruin.com)
+[![dbt](https://img.shields.io/badge/dbt-1.10.0-FF694B?style=for-the-badge&logo=dbt&logoColor=white)](https://www.getdbt.com)
+[![Docker](https://img.shields.io/badge/Docker-latest-0db7ed?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.1.0-FFF000?style=for-the-badge&logo=duckdb&logoColor=black)](https://duckdb.org)
+[![Google BigQuery](https://img.shields.io/badge/BigQuery-latest-4285F4?style=for-the-badge&logo=googlebigquery&logoColor=white)](https://cloud.google.com/bigquery)
+[![Redpanda](https://img.shields.io/badge/Redpanda-24.2.7-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
 
 A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark, and makes it queryable with DuckDB.
 
