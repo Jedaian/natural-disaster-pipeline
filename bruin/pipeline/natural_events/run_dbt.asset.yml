@@ -1,0 +1,8 @@
+name: run_dbt
+type: command
+description: Run dbt transformations on DuckDB data
+
+command: |
+  cd /usr/app/dbt/natural_events && dbt run
+
+depends: []

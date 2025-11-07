@@ -106,19 +106,20 @@ services:
     depends_on:
       - spark-master
 
-  dbt:
+  bruin-dbt:
     build:
       context: .
       dockerfile: Dockerfile
-    image: dbt-custom:1.10.0
-    container_name: dbt
-    working_dir: /usr/app/dbt
+    image: bruin-dbt-custom:1.0.0
+    container_name: bruin-dbt
+    working_dir: /workspace
     volumes:
+      - ./bruin:/workspace
       - ./dbt:/usr/app/dbt
       - ./spark-data:/usr/app/data
     networks:
       - pipeline-network
-    entrypoint: ["/bin/bash", "-c", "tail -f /dev/null"]
+    command: tail -f /dev/null
 
 volumes:
   nifi_conf:
