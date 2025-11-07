@@ -4,9 +4,11 @@
 [![Apache NiFi](https://img.shields.io/badge/Apache%20NiFi-003366?style=for-the-badge&logo=apache-nifi&logoColor=white)](https://nifi.apache.org)
 [![Apache Parquet](https://img.shields.io/badge/Apache%20Parquet-50A0FF?style=for-the-badge&logo=apache&logoColor=white)](https://parquet.apache.org)
 [![Apache Spark](https://img.shields.io/badge/Apache%20Spark-FDEE21?style=flat-square&logo=apachespark&logoColor=black)](https://spark.apache.org)
+[![Bruin](https://img.shields.io/badge/Bruin-4B8BF4?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSJ3aGl0ZSIgdmlld0JveD0iMCAwIDI0IDI0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xMiAyYTEwIDEwIDAgMSAwIDEwIDEwQTEwIDEwIDAgMCAwIDEyIDJaTTggOWwtMyAzbDMgM2wyLTIgMiAyIDMtMy0zLTNMMTAgMTFsLTItMnoiLz48L3N2Zz4%3D)](https://getbruin.com)
 [![dbt](https://img.shields.io/badge/dbt-FF694B?style=for-the-badge&logo=dbt&logoColor=white)](https://www.getdbt.com)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?style=for-the-badge&logo=duckdb&logoColor=black)](https://duckdb.org)
+[![Google BigQuery](https://img.shields.io/badge/BigQuery-4285F4?style=for-the-badge&logo=googlebigquery&logoColor=white)](https://cloud.google.com/bigquery)
 [![Redpanda](https://img.shields.io/badge/Redpanda-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
 
 A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark, and makes it queryable with DuckDB.
@@ -19,14 +21,14 @@ Think of this as a mini version of how companies handle real-time data at scale.
 2. Streams that data through Kafka (via Redpanda)
 3. Processes it with Spark
 4. Stores it in Parquet files
-5. Transforms it with dbt for analysis
+5. Orchestrates and transforms data with Bruin (which runs dbt internally)
 6. Makes it ready for visualization
 
 The whole thing runs locally on Docker, which makes it perfect for learning how these tools work together without needing cloud infrastructure.
 
 ## Architecture
 
-Proposed architecture (still WIP for orchestration, BQ and dashboard):
+Proposed architecture (orchestration with Bruin initialized, still WIP for BQ and dashboard):
 <image title="ETL Architecture" src="architecture/natural_events_architecture.png">
 
 **Why these tools?**
@@ -35,7 +37,8 @@ Proposed architecture (still WIP for orchestration, BQ and dashboard):
 - **Redpanda**: Kafka-compatible message broker that's lighter and easier to run locally than Kafka itself.
 - **Spark**: Handles stream processing. Bit of overkill for this data volume, but great for learning.
 - **Parquet**: Column-oriented format that's perfect for analytical queries.
-- **dbt**: Transforms raw data into clean, aggregated tables using SQL.
+- **Bruin**: Modern data pipeline orchestration tool that manages and runs dbt transformations with built-in data quality checks.
+- **dbt**: Transforms raw data into clean, aggregated tables using SQL (executed via Bruin).
 - **DuckDB**: In-process database that can query Parquet files directly. Like SQLite but for analytics.
 
 ## Prerequisites
@@ -51,18 +54,25 @@ You need:
 ```
 natural-disasters-pipeline/
 ├── docker-compose.yml          # All services defined here
-├── Dockerfile                  # Custom dbt container
+├── Dockerfile                  # Custom bruin-dbt container
 ├── spark-apps/
 │   └── streaming_app.py       # Spark streaming job
 ├── spark-data/
 │   ├── fires/                 # Fire data parquet files
 │   ├── earthquakes/           # Earthquake data parquet files
 │   └── natural_events.duckdb  # DuckDB database
+├── bruin-pipeline/             # Bruin project for orchestration
+│   ├── pipeline.yml           # Bruin pipeline configuration
+│   ├── .bruin.yml             # Bruin project settings
+│   └── assets/                # dbt models and other assets
+│       └── dbt_models/
+│           ├── staging/       # Raw data views
+│           └── marts/         # Aggregated tables
 └── dbt/
-    └── models/
-    │   ├── staging/       # Raw data views
-    │   └── marts/         # Aggregated tables
-    └── profiles.yml       # DuckDB connection config
+    ├── models/                # dbt models (managed by Bruin)
+    │   ├── staging/           # Raw data views
+    │   └── marts/             # Aggregated tables
+    └── profiles.yml           # DuckDB connection config
 ```
 
 ## Getting Started
@@ -85,7 +95,7 @@ This starts:
 - NiFi (https://localhost:8443)
 - Redpanda Console (http://localhost:8090)
 - Spark Master UI (http://localhost:8080)
-- dbt container (runs in background)
+- Bruin-dbt container (runs in background, with both Bruin CLI and dbt)
 
 Wait a couple minutes for everything to initialize.
 
@@ -151,20 +161,25 @@ This will:
 
 You should see log output showing batches being processed with record counts and sample data.
 
-### 6. Transform Data with dbt
+### 6. Transform Data with Bruin
 
-Once Spark has written some data, run dbt transformations:
+Once Spark has written some data, run the Bruin pipeline which orchestrates dbt transformations:
 
 ```bash
-docker exec -it dbt bash
+# Option 1: Run the entire Bruin pipeline
+docker exec -it bruin-dbt bruin run bruin-pipeline
+
+# Option 2: Run dbt directly (for development/testing)
+docker exec -it bruin-dbt bash
 cd /usr/app/dbt/natural_events
 dbt run
 ```
 
-This creates:
+Bruin orchestrates the pipeline and executes:
 - Staging views (`stg_fires`, `stg_earthquakes`) that clean and filter the raw Parquet data
 - Summary tables with aggregations by date, satellite, and confidence level
 - A combined events table with both fires and earthquakes for unified analysis
+- Data quality checks and lineage tracking
 - All models use optimized SQL with proper formatting for maintainability
 
 ### 7. Query the Data
@@ -172,7 +187,7 @@ This creates:
 You can query the data using Python and DuckDB:
 
 ```bash
-docker exec -it dbt python3
+docker exec -it bruin-dbt python3
 ```
 
 ```python
@@ -215,7 +230,7 @@ con.execute("SELECT event_type, COUNT(*) FROM combined_events GROUP BY event_typ
 - Writes to Parquet with no compression for ARM64 compatibility
 - Fire data partitioned by acquisition date for efficient querying
 - Checkpoints ensure fault tolerance and exactly-once semantics
-- dbt then aggregates this data for analysis
+- Bruin orchestrates dbt to aggregate this data for analysis
 
 ## Technical Highlights
 
@@ -231,7 +246,7 @@ The NASA FIRMS API returns CSV data that contains embedded newlines within the d
 - Fire data is partitioned by `acq_date` (acquisition date) in Parquet format
 - This creates a directory structure like `/fires/acq_date=2025-11-05/`
 - Enables efficient time-based queries without scanning all data
-- dbt and DuckDB can read specific partitions when filtering by date
+- Bruin-managed dbt models and DuckDB can read specific partitions when filtering by date
 
 **Stream Processing Optimizations:**
 - RocksDB state store for Spark streaming checkpoints (better performance than default)
@@ -257,20 +272,21 @@ The NASA FIRMS API returns CSV data that contains embedded newlines within the d
 - Check if Redpanda topics have messages (Redpanda Console)
 - Check Spark logs for errors
 
-**dbt can't find tables:**
+**Bruin/dbt can't find tables:**
 - Make sure Spark has written Parquet files to spark-data/
 - Check the paths in dbt models match your actual file locations
+- Verify Bruin pipeline configuration points to correct dbt project path
 
 ## What's Next
 
 This is a learning project, so here are some ideas to extend it:
 
 1. **Add Looker Studio** for visualization dashboards
-2. **Add Airflow** to orchestrate the pipeline on a schedule instead of running continuously
+2. **Enhance Bruin orchestration** with scheduled runs, data quality checks, and notifications
 3. **Split large messages in NiFi** using SplitText processor before publishing to Kafka
 4. **Add deduplication** to handle cases where the same event appears in multiple fetches
-5. **Deploy to cloud** (GCP, AWS) instead of running locally
-6. **Add alerting** for major events (magnitude > 6 earthquakes, large fires)
+5. **Deploy to cloud** (GCP, AWS) with BigQuery integration instead of running locally
+6. **Add alerting** for major events (magnitude > 6 earthquakes, large fires) via Bruin
 7. **Historical analysis** by storing data long-term and analyzing trends
 
 ## Tech Stack Summary
@@ -280,7 +296,8 @@ This is a learning project, so here are some ideas to extend it:
 | Apache NiFi | latest | Data ingestion from APIs |
 | Redpanda | latest | Message broker (Kafka-compatible) |
 | Apache Spark | 3.4.0 | Stream processing |
-| dbt | 1.10.0 | Data transformation |
+| Bruin | latest | Pipeline orchestration and data quality |
+| dbt | 1.10.0 | Data transformation (via Bruin) |
 | DuckDB | latest | Analytical database |
 | Parquet | - | Storage format |
 | Docker | - | Containerization |
@@ -289,6 +306,7 @@ This is a learning project, so here are some ideas to extend it:
 
 - [NASA FIRMS API Docs](https://firms.modaps.eosdis.nasa.gov/api/)
 - [USGS Earthquake API Docs](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php)
+- [Bruin Documentation](https://getbruin.com/docs)
 - [dbt Documentation](https://docs.getdbt.com/)
 - [Spark Structured Streaming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html)
 - [Redpanda Documentation](https://docs.redpanda.com/)
