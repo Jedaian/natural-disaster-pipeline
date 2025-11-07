@@ -26,7 +26,7 @@ The whole thing runs locally on Docker, which makes it perfect for learning how 
 
 ## Architecture
 
-Here's how data flows through the system:
+Proposed architecture (still WIP for orchestration, BQ and dashboard):
 <image title="ETL Architecture" src="architecture/natural_events_architecture.png">
 
 **Why these tools?**
