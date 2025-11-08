@@ -78,7 +78,7 @@ services:
     environment:
       - SPARK_NO_DAEMONIZE=true
     ports:
-      - "8080:8080" #Spark Webserver UI
+      - "8070:8080" #Spark Webserver UI
       - "7077:7077" #Spark Master Port
     volumes:
       - ./spark-apps:/opt/spark-apps
@@ -106,20 +106,112 @@ services:
     depends_on:
       - spark-master
 
-  bruin-dbt:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: bruin-dbt-custom:1.0.0
-    container_name: bruin-dbt
-    working_dir: /workspace
+  dbt:
+    image: python:3.11-slim
+    container_name: dbt
+    working_dir: /usr/app/dbt
     volumes:
-      - ./bruin:/workspace
       - ./dbt:/usr/app/dbt
       - ./spark-data:/usr/app/data
+      - ./scripts:/usr/app/scripts
+      - ./config/gcp-credentials.json:/usr/app/gcp-credentials.json:ro
     networks:
       - pipeline-network
-    command: tail -f /dev/null
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/usr/app/gcp-credentials.json
+      - GCS_BUCKET=natural-events-staging
+      - BQ_PROJECT=natural-events-pipeline
+      - BQ_DATASET=natural_events
+      - DUCKDB_PATH=/usr/app/data/natural_events.duckdb
+    entrypoint: ["/bin/bash", "-c", "pip install dbt-core dbt-duckdb google-cloud-storage google-cloud-bigquery pandas pyarrow duckdb && tail -f /dev/null"]
+
+  airflow-init:
+    build: .
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command: -c "
+      echo 'Initializing Airflow DB (SQLite)...'; \
+      airflow db migrate && \
+      echo 'Creating default user...'; \
+      airflow users create \
+        --username admin \
+        --password admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com || echo 'User already exists'; \
+      airflow connections add 'duckdb_default' \
+        --conn-type 'duckdb' \
+        --conn-host '/opt/spark-data/natural_events.duckdb' || echo 'Connection already exists';
+      "
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./spark-data:/opt/spark-data
+      - ./dbt:/opt/dbt
+      - ./scripts:/opt/scripts
+      - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
+    networks:
+      - pipeline-network
+    restart: on-failure
+
+  airflow-webserver:
+    build: .
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
+      GCS_BUCKET: natural-events-staging
+      BQ_PROJECT: natural-events-pipeline
+      BQ_DATASET: natural_events
+      DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./spark-data:/opt/spark-data
+      - ./dbt:/opt/dbt
+      - ./scripts:/opt/scripts
+      - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - pipeline-network
+    restart: always
+
+  airflow-scheduler:
+    build: .
+    container_name: airflow-scheduler
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
+      GCS_BUCKET: natural-events-staging
+      BQ_PROJECT: natural-events-pipeline
+      BQ_DATASET: natural_events
+      DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./spark-data:/opt/spark-data
+      - ./dbt:/opt/dbt
+      - ./scripts:/opt/scripts
+      - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - pipeline-network
+    restart: always
+
 
 volumes:
   nifi_conf:
@@ -128,6 +220,8 @@ volumes:
   nifi_flowfile:
   nifi_content:
   nifi_provenance:
+  postgres-data:
+  logs:
 
 networks:
   pipeline-network:

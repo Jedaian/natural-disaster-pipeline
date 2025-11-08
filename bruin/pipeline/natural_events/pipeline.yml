@@ -1,6 +1,0 @@
-name: natural_events_etl
-schedule: "0 * * * *"  #Run every hour
-
-default_connections:
-  google_cloud_platform: bq
-  duckdb: local_duck

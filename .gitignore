@@ -2,4 +2,5 @@ dbt/*.yml
 dbt/logs
 dbt/target
 spark-data/
-bruin/*json
+config/*.json
+logs/
