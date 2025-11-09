@@ -38,8 +38,6 @@ A streaming data pipeline that tracks natural disasters around the world in real
 
 ## Prerequisites
 
-- Docker Desktop installed
-- About 4-5 GB of free disk space
 - NASA FIRMS API key (https://firms.modaps.eosdis.nasa.gov/api/)
 - M1/M2 Mac, or adjust the Docker images for your architecture
 
@@ -47,23 +45,22 @@ A streaming data pipeline that tracks natural disasters around the world in real
 
 ```
 natural-disasters-pipeline/
-├── docker-compose.yml          # All services defined here
-├── Dockerfile                  # Custom container
+├── docker-compose.yml          #All services defined here
+├── Dockerfile                  #Custom container
 ├── spark-apps/
-│   └── streaming_app.py       # Spark streaming job
+│   └── streaming_app.py       #Spark streaming job
 ├── spark-data/
-│   ├── fires/                 # Fire data parquet files
-│   ├── earthquakes/           # Earthquake data parquet files
-│   └── natural_events.duckdb  # DuckDB database
-├── airflow/
-│   ├── dags/                  # Airflow DAGs
-│   ├── logs/                  # Airflow logs
-│   └── plugins/               # Airflow plugins
+│   ├── fires/                 #Fire data parquet files
+│   ├── earthquakes/           #Earthquake data parquet files
+│   └── natural_events.duckdb  #DuckDB database
+├── dags/                  #Airflow DAGs
+├── logs/                  #Airflow logs
+├── scripts/               #Script files
 └── dbt/
-    ├── models/                # dbt models
-    │   ├── staging/           # Raw data views
-    │   └── marts/             # Aggregated tables
-    └── profiles.yml           # DuckDB connection config
+    ├── models/                #dbt models
+    │   ├── staging/           #Raw data views
+    │   └── marts/             #Aggregated tables
+    └── profiles.yml           #DuckDB connection config
 ```
 
 ## Getting Started
@@ -85,8 +82,8 @@ docker-compose up -d
 This starts:
 - NiFi (https://localhost:8443)
 - Redpanda Console (http://localhost:8090)
-- Spark Master UI (http://localhost:8080)
-- Airflow UI (http://localhost:8081)
+- Spark Master UI (http://localhost:8070)
+- Airflow UI (http://localhost:8080)
 
 Wait a couple minutes for everything to initialize.
 
@@ -96,26 +93,7 @@ Access NiFi at https://localhost:8443/nifi (username: `admin`, password: `admina
 
 **NASA FIRMS flow:**
 
-1. Add `InvokeHTTP` processor:
-   - HTTP Method: GET
-   - Remote URL: `https://firms.modaps.eosdis.nasa.gov/api/area/csv/YOUR_API_KEY/VIIRS_SNPP_NRT/world/1`
-   - Run Schedule: 15 min
-   - Auto-terminate: Original, Failure, Retry, No Retry
-
-2. Add `PublishKafka_2_6` processor:
-   - Create `KafkaConnectionService` controller service
-   - Bootstrap Servers: `redpanda:9092`
-   - Topic Name: `fires-topic`
-   - Auto-terminate: success, failure
-
-3. Connect InvokeHTTP (Response) to PublishKafka
-
-**USGS Earthquake flow:**
-
-Same setup with:
-- Remote URL: `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson`
-- Run Schedule: 1 min
-- Topic Name: `earthquakes-topic`
+WIP. Possible template or just general guidelines
 
 ### 4. Create Redpanda Topics
 
@@ -145,7 +123,7 @@ The job will:
 
 ### 6. Configure and Run Airflow
 
-Access Airflow UI at http://localhost:8081
+Access Airflow UI at http://localhost:8080
 
 The Airflow DAG orchestrates:
 - dbt transformations on a scheduled basis
@@ -155,27 +133,6 @@ The Airflow DAG orchestrates:
 - Data quality checks
 
 Enable the DAG in the Airflow UI to start scheduled runs.
-
-### 7. Query the Data
-
-Query the data using Python and DuckDB:
-
-```python
-import duckdb
-con = duckdb.connect('/path/to/spark-data/natural_events.duckdb')
-
-# Check tables
-con.execute("SHOW TABLES").fetchall()
-
-# Query fire summary
-con.execute("SELECT * FROM fire_summary LIMIT 10").fetchdf()
-
-# Query earthquake summary
-con.execute("SELECT * FROM earthquake_summary LIMIT 10").fetchdf()
-
-# Query combined events
-con.execute("SELECT event_type, COUNT(*) FROM combined_events GROUP BY event_type").fetchall()
-```
 
 ## Understanding the Data Flow
 
