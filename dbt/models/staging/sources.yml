@@ -7,9 +7,10 @@ sources:
       - name: fires
         description: Fire hotspot data from NASA FIRMS API
         meta:
-          external_location: "read_parquet('/usr/app/data/fires/**/*.parquet')"
+          external_location: "read_parquet('/opt/spark-data/fires/**/*.parquet')"
       
       - name: earthquakes
         description: Earthquake data from USGS API
         meta:
-          external_location: "read_parquet('/usr/app/data/earthquakes/**/*.parquet')"
+          external_location: "read_parquet('/opt/spark-data/earthquakes/**/*.parquet')"
+          path: '/opt/spark-data/natural_events.duckdb'

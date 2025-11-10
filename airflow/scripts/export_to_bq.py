@@ -3,16 +3,15 @@ import os
 import time
 import pathlib
 import logging
-import tempfile
-from typing import List, Dict
+from typing import Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import duckdb
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound, Conflict, GoogleAPIError
 
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/usr/app/data/natural_events.duckdb")
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/workspace/gcp-credentials.json")
+DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/spark-data/natural_events.duckdb")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/opt/config/gcp-credentials.json")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
 
 GCS_BUCKET = os.getenv("GCS_BUCKET", "natural-events-staging")
@@ -20,7 +19,7 @@ BQ_PROJECT = os.getenv("BQ_PROJECT")
 BQ_DATASET = os.getenv("BQ_DATASET", "natural_events")
 TABLES = ["fire_summary", "earthquake_summary", "combined_events"]
 
-LOCAL_EXPORT_DIR = os.getenv("LOCAL_EXPORT_DIR", "/usr/app/spark-data/exports")
+LOCAL_EXPORT_DIR = os.getenv("LOCAL_EXPORT_DIR", "/opt/spark-data/exports")
 CONCURRENCY = int(os.getenv("EXPORT_CONCURRENCY", "3"))
 MAX_RETRIES = 5
 RETRY_DELAY = 2.0
@@ -46,9 +45,6 @@ def retry(func):
                 delay *= 2
     return wrapper
 
-# ---------------------------
-# Clients
-# ---------------------------
 def init_clients():
     bq = bigquery.Client(project=BQ_PROJECT) if BQ_PROJECT else bigquery.Client()
     gcs = storage.Client()

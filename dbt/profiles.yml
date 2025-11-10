@@ -1,0 +1,7 @@
+natural_events:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '/opt/spark-data/natural_events.duckdb'
+      threads: 4

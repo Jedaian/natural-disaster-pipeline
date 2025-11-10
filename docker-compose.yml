@@ -113,7 +113,7 @@ services:
     volumes:
       - ./dbt:/usr/app/dbt
       - ./spark-data:/usr/app/data
-      - ./scripts:/usr/app/scripts
+      - ./airflow/scripts:/usr/app/scripts
       - ./config/gcp-credentials.json:/usr/app/gcp-credentials.json:ro
     networks:
       - pipeline-network
@@ -130,33 +130,32 @@ services:
     container_name: airflow-init
     entrypoint: /bin/bash
     command: -c "
-      echo 'Initializing Airflow DB (SQLite)...'; \
-      airflow db migrate && \
-      echo 'Creating default user...'; \
+      echo 'Initializing Airflow DB...';
+      airflow db init &&
+      echo 'Creating default user...';
       airflow users create \
         --username admin \
         --password admin \
         --firstname Admin \
         --lastname User \
         --role Admin \
-        --email admin@example.com || echo 'User already exists'; \
-      airflow connections add 'duckdb_default' \
-        --conn-type 'duckdb' \
-        --conn-host '/opt/spark-data/natural_events.duckdb' || echo 'Connection already exists';
+        --email admin@example.com || echo 'User already exists';
+      echo 'Database initialized successfully!'
       "
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
+      - ./airflow:/opt/airflow
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
       - ./dbt:/opt/dbt
-      - ./scripts:/opt/scripts
+      - ./airflow/scripts:/opt/scripts
       - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
     networks:
       - pipeline-network
-    restart: on-failure
 
   airflow-webserver:
     build: .
@@ -167,24 +166,26 @@ services:
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
       GCS_BUCKET: natural-events-staging
       BQ_PROJECT: natural-events-pipeline
       BQ_DATASET: natural_events
       DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
+      - ./airflow:/opt/airflow  #Shared volume for SQLite database
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
       - ./dbt:/opt/dbt
-      - ./scripts:/opt/scripts
+      - ./airflow/scripts:/opt/scripts
       - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     networks:
       - pipeline-network
-    restart: always
+    restart: unless-stopped
 
   airflow-scheduler:
     build: .
@@ -193,24 +194,26 @@ services:
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
       GCS_BUCKET: natural-events-staging
       BQ_PROJECT: natural-events-pipeline
       BQ_DATASET: natural_events
       DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
+      - ./airflow:/opt/airflow  #Shared volume for SQLite database
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
       - ./dbt:/opt/dbt
-      - ./scripts:/opt/scripts
+      - ./airflow/scripts:/opt/scripts
       - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     networks:
       - pipeline-network
-    restart: always
+    restart: unless-stopped
 
 
 volumes:

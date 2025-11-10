@@ -1,6 +1,12 @@
-dbt/*.yml
+dbt/.*.yml
 dbt/logs
 dbt/target
 spark-data/
 config/*.json
 logs/
+airflow/temp
+airflow/dags/__pycache__/*
+airflow/*.pid
+airflow/*.cfg
+airflow/*.db
+airflow/*.py
