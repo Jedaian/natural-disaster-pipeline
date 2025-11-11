@@ -125,6 +125,22 @@ services:
       - DUCKDB_PATH=/usr/app/data/natural_events.duckdb
     entrypoint: ["/bin/bash", "-c", "pip install dbt-core dbt-duckdb google-cloud-storage google-cloud-bigquery pandas pyarrow duckdb && tail -f /dev/null"]
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-airflow:/var/lib/postgresql/data
+    networks:
+      - pipeline-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      retries: 5
+
   airflow-init:
     build: .
     container_name: airflow-init
@@ -144,16 +160,18 @@ services:
       "
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     volumes:
-      - ./airflow:/opt/airflow
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
       - ./dbt:/opt/dbt
       - ./airflow/scripts:/opt/scripts
       - ./config/gcp-credentials.json:/opt/config/gcp-credentials.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - pipeline-network
 
@@ -165,15 +183,14 @@ services:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
       GCS_BUCKET: natural-events-staging
       BQ_PROJECT: natural-events-pipeline
       BQ_DATASET: natural_events
       DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
     volumes:
-      - ./airflow:/opt/airflow  #Shared volume for SQLite database
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
@@ -193,15 +210,14 @@ services:
     command: scheduler
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       GOOGLE_APPLICATION_CREDENTIALS: /opt/config/gcp-credentials.json
       GCS_BUCKET: natural-events-staging
       BQ_PROJECT: natural-events-pipeline
       BQ_DATASET: natural_events
       DUCKDB_PATH: /opt/spark-data/natural_events.duckdb
     volumes:
-      - ./airflow:/opt/airflow  #Shared volume for SQLite database
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./spark-data:/opt/spark-data
@@ -223,7 +239,7 @@ volumes:
   nifi_flowfile:
   nifi_content:
   nifi_provenance:
-  postgres-data:
+  postgres-airflow:
   logs:
 
 networks:
