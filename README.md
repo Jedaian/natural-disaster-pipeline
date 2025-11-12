@@ -58,6 +58,7 @@ A streaming data pipeline that tracks natural disasters around the world in real
 natural-disasters-pipeline/
 ├── docker-compose.yml              # All services (NiFi, Redpanda, Spark, Airflow, PostgreSQL)
 ├── Dockerfile                      # Custom Airflow image with dbt and GCP dependencies
+├── start_pipeline.sh               # Custom script to automate docker, Nifi and Spark Jobs
 ├── spark-apps/
 │   └── streaming_app.py           # Spark Structured Streaming job
 ├── spark-data/
@@ -184,6 +185,13 @@ Access Airflow UI at http://localhost:8080 (username: `admin`, password: `admin`
 - Deletes temporary GCS files
 
 Enable the DAG in the Airflow UI to start scheduled hourly runs.
+
+### Automation
+
+Once everything has been setup and running for the first time, you can use the available script to instantly run docker, Nifi and Spark jobs
+```
+bash ./start_pipeline.sh
+```
 
 ## Understanding the Data Flow
 
