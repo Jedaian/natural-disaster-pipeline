@@ -4,7 +4,7 @@ SELECT
   latitude,
   longitude,
   bright_ti4,
-  timestamp AS event_time,
+  event_timestamp AS event_time,
   satellite,
   confidence,
   frp AS fire_radioactive_power,

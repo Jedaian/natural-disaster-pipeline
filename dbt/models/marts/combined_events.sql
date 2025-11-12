@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='view') }}
 
 WITH combined AS (
   SELECT
@@ -31,4 +31,4 @@ WITH combined AS (
     FROM {{ ref('stg_earthquakes') }}
   )
 )
-SELECT * FROM combined
+SELECT DISTINCT * FROM combined

@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, lit, current_timestamp, from_json, explode, length, from_csv, to_date, regexp_replace, trim, split, from_unixtime, to_timestamp, concat_ws
+    col, lit, current_timestamp, from_json, explode, length, from_csv, to_date, regexp_replace, trim, split, from_unixtime, to_timestamp, concat_ws, lpad
 )
 from pyspark.sql.types import (
     StructType, StructField, DoubleType, StringType, ArrayType, LongType, IntegerType
@@ -94,9 +94,10 @@ fires_df = fires_stream \
     .withColumn("parsed", from_csv(col("line"), fires_schema.simpleString())) \
     .select("parsed.*") \
     .withColumn("acq_date", to_date(col("acq_date"), "yyyy-MM-dd")) \
+    .withColumn("event_timestamp", to_timestamp(concat_ws(' ', col('acq_date').cast("string"), lpad(col('acq_time'), 4, '0')), 'yyyy-MM-dd HHmm')) \
     .withColumn("event_type", lit("fire")) \
-    .withColumn("timestamp", current_timestamp()) \
-    .withWatermark("timestamp", "1 hour")
+    .withColumn("event_id", concat_ws('_', col('satellite'), col('acq_date').cast("string"), lpad(col('acq_time'),4,'0'), col('latitude'), col('longitude'))) \
+    .withWatermark("event_timestamp", "1 hour")
 
 earthquakes_stream = spark.readStream\
     .format("kafka") \
@@ -117,6 +118,7 @@ earthquakes_df = earthquakes_stream \
         col("feature.geometry.coordinates")[0].alias("longitude"),
         col("feature.geometry.coordinates")[1].alias("latitude"),
         col("feature.geometry.coordinates")[2].alias("depth"),
+        col("feature.id").alias("event_id"),
         lit("earthquake").alias("event_type")
     ) \
     .filter(col("time").isNotNull()) \
@@ -135,6 +137,7 @@ def print_batch_info(df, batch_id):
 
 def writes_fire_batch(df, batch_id):
     print_batch_info(df, batch_id)
+    df = df.dropDuplicates(["event_id"])
     df.write \
         .mode("append") \
         .partitionBy("acq_date") \
@@ -150,6 +153,7 @@ fires_query = fires_df \
 
 def writes_earthquake_batch(df, batch_id):
     print_batch_info(df, batch_id)
+    df = df.dropDuplicates(["event_id"])
     df.write \
         .mode("append") \
         .partitionBy("event_date") \
