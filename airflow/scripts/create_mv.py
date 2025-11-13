@@ -112,9 +112,10 @@ def create_mv_fire_metrics(client):
       ROUND(max_frp, 1) as max_fire_power,
       
       CASE 
-        WHEN CAST(confidence AS INT64) >= 80 THEN 'High'
-        WHEN CAST(confidence AS INT64) >= 50 THEN 'Medium'
-        ELSE 'Low'
+        WHEN confidence = 'h' THEN 'High'
+        WHEN confidence = 'n' THEN 'Nominal'
+        WHEN confidence = 'l' THEN 'Low'
+        ELSE 'Unknown'
       END as confidence_level,
       
       CASE 

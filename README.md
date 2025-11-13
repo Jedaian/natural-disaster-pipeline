@@ -70,7 +70,8 @@ natural-disasters-pipeline/
 │   └── natural_events.duckdb      # DuckDB database file
 ├── airflow/
 │   ├── dags/
-│   │   └── migrate_duckdb_bq.py  # Hourly DAG for dbt transformation + BigQuery export + MV creation
+│   │   ├── migrate_duckdb_bq.py  # Hourly DAG for dbt transformation + BigQuery export + MV creation
+│   │   └── create_mv_onetime.py  # One-time DAG to create materialized views manually
 │   ├── scripts/
 │   │   ├── export_to_bq.py       # Script to export DuckDB to BigQuery via GCS
 │   │   └── create_mv.py          # Script to create BigQuery materialized views for Looker
@@ -168,17 +169,24 @@ Access Airflow UI at http://localhost:8080 (username: `admin`, password: `admin`
 - **Database**: PostgreSQL 15 (`postgresql+psycopg2://airflow:airflow@postgres/airflow`)
 - **DAG Schedule**: `@hourly` (runs every hour)
 
-**The `migrate_duckdb_to_bigquery` DAG orchestrates:**
-1. **check_dbt_path** - Verify dbt installation
-2. **setup_dbt_temp_directory** - Create temporary directory for dbt run
-3. **run_dbt_models** - Execute dbt transformations on mart models
-   - Staging views (`stg_fires`, `stg_earthquakes`) that clean and filter raw Parquet data
-   - Summary tables with aggregations by date, satellite, and confidence level
-   - A combined events table with both fires (clustered) and earthquakes
-4. **test_dbt_models** - Run dbt tests for data quality checks
-5. **cleanup_dbt_temp_directory** - Remove temporary files
-6. **run_export_script** - Export DuckDB tables to BigQuery via GCS
-7. **create_materialized_views** - Create 4 materialized views for Looker Studio dashboards
+**Available DAGs:**
+
+1. **`migrate_duckdb_to_bigquery`** (Hourly scheduled DAG):
+   - **check_dbt_path** - Verify dbt installation
+   - **setup_dbt_temp_directory** - Create temporary directory for dbt run
+   - **run_dbt_models** - Execute dbt transformations on mart models
+     - Staging views (`stg_fires`, `stg_earthquakes`) that clean and filter raw Parquet data
+     - Summary tables with aggregations by date, satellite, and confidence level
+     - A combined events table with both fires (clustered) and earthquakes
+   - **test_dbt_models** - Run dbt tests for data quality checks
+   - **cleanup_dbt_temp_directory** - Remove temporary files
+   - **run_export_script** - Export DuckDB tables to BigQuery via GCS
+   - **create_materialized_views** - Create 4 materialized views for Looker Studio dashboards
+
+2. **`dag_create_mv_and_views_once`** (Manual/One-time DAG):
+   - **create_materialized_views** - Creates BigQuery materialized views independently
+   - Useful for initial setup or manual recreation of views
+   - `schedule_interval=None` - only runs when manually triggered
 
 **BigQuery Export Process:**
 - Reads tables from DuckDB: `fire_summary`, `earthquake_summary`, `combined_events`
