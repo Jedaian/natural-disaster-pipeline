@@ -120,10 +120,18 @@ def hourly_firms_usgs_export_dag():
             "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ["PATH"]
         }
     )
+
+    create_materialized_views = BashOperator(
+        task_id='create_materialized_views',
+        bash_command="python3 /opt/scripts/create_mv.py",
+        env={
+            "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ["PATH"]
+        }
+    )
     
     dbt_temp_path = setup_dbt_temp_directory()
     cleanup = cleanup_dbt_temp_directory(dbt_temp_path)
 
-    check_dbt_path >> dbt_temp_path >> run_dbt_models >> test_dbt_models >> cleanup >> run_export_script
+    check_dbt_path >> dbt_temp_path >> run_dbt_models >> test_dbt_models >> cleanup >> run_export_script >> create_materialized_views
 
 dag = hourly_firms_usgs_export_dag()

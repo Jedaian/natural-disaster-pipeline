@@ -118,8 +118,27 @@ def upload_to_gcs(gcs_client: storage.Client, bucket_name: str, local_file: str,
 def load_parquet_to_bq(bq_client: bigquery.Client, gs_uri: str, dataset: str, table: str):
     table_id = f"{bq_client.project}.{dataset}.{table}"
     if table == "combined_events":
+        logger.info("Creating partitioned table for combined_events")
+        create_table_sql = f"""
+        CREATE TABLE IF NOT EXISTS `{table_id}` (
+            latitude FLOAT64,
+            longitude FLOAT64,
+            event_type STRING,
+            intensity_measure FLOAT64,
+            event_time TIMESTAMP,
+            event_date DATE,
+            severity_level STRING
+        )
+        PARTITION BY event_date
+        CLUSTER BY event_type, severity_level
+        """
+        
+        try:
+            bq_client.query(create_table_sql).result()
+            logger.info("Ensured partitioned table exists for combined_events")
+        except Conflict:
+            logger.info("Partitioned table already exists")
         write_mode = "WRITE_TRUNCATE"
-        logger.info("Using WRITE_TRUNCATE for combined_events")
     else:
         write_mode = "WRITE_APPEND"
         logger.info("Using WRITE_APPEND for %s", table)
