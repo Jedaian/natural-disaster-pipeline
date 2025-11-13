@@ -12,17 +12,18 @@
 [![Google BigQuery](https://img.shields.io/badge/BigQuery-latest-4285F4?style=for-the-badge&logo=googlebigquery&logoColor=white)](https://cloud.google.com/bigquery)
 [![Redpanda](https://img.shields.io/badge/Redpanda-24.2.7-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
 
-A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark and dbt, orchestrates data workflows with Airflow, and exports analytics to Google BigQuery.
+A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark and dbt, orchestrates data workflows with Airflow, and exports analytics to Google BigQuery with materialized views ready for Looker Studio dashboards.
 
 ## What This Does
 
 1. Pulls the latest fire and earthquake data from public APIs (NASA FIRMS & USGS)
 2. Streams that data through Kafka (via Redpanda)
-3. Processes it with Spark Structured Streaming
+3. Processes it with Spark Structured Streaming (includes spatial clustering for fires)
 4. Stores it in partitioned Parquet files
 5. Transforms data with dbt (staging views + aggregated marts)
 6. Orchestrates hourly pipelines with Airflow (powered by PostgreSQL)
-7. Exports analytics to Google BigQuery via GCS for dashboards and reporting
+7. Exports analytics to Google BigQuery via GCS (with partitioning and clustering)
+8. Creates materialized views automatically for Looker Studio dashboards
 
 ## Architecture
 
@@ -69,9 +70,10 @@ natural-disasters-pipeline/
 │   └── natural_events.duckdb      # DuckDB database file
 ├── airflow/
 │   ├── dags/
-│   │   └── migrate_duckdb_bq.py  # Hourly DAG for dbt transformation + BigQuery export
+│   │   └── migrate_duckdb_bq.py  # Hourly DAG for dbt transformation + BigQuery export + MV creation
 │   ├── scripts/
-│   │   └── export_to_bq.py       # Script to export DuckDB to BigQuery via GCS
+│   │   ├── export_to_bq.py       # Script to export DuckDB to BigQuery via GCS
+│   │   └── create_mv.py          # Script to create BigQuery materialized views for Looker
 │   ├── logs/                     # Airflow execution logs
 │   ├── airflow.cfg               # Airflow configuration
 │   └── webserver_config.py       # Airflow webserver settings
@@ -172,17 +174,25 @@ Access Airflow UI at http://localhost:8080 (username: `admin`, password: `admin`
 3. **run_dbt_models** - Execute dbt transformations on mart models
    - Staging views (`stg_fires`, `stg_earthquakes`) that clean and filter raw Parquet data
    - Summary tables with aggregations by date, satellite, and confidence level
-   - A combined events table with both fires and earthquakes
+   - A combined events table with both fires (clustered) and earthquakes
 4. **test_dbt_models** - Run dbt tests for data quality checks
 5. **cleanup_dbt_temp_directory** - Remove temporary files
 6. **run_export_script** - Export DuckDB tables to BigQuery via GCS
+7. **create_materialized_views** - Create 4 materialized views for Looker Studio dashboards
 
 **BigQuery Export Process:**
 - Reads tables from DuckDB: `fire_summary`, `earthquake_summary`, `combined_events`
 - Exports to Parquet files locally
 - Uploads Parquet to GCS bucket (`natural-events-staging`)
 - Loads Parquet from GCS into BigQuery (`natural-events-pipeline.natural_events`)
+- `combined_events` table uses partitioning by date and clustering by event type and severity
 - Deletes temporary GCS files
+
+**Materialized Views for Looker Studio:**
+- `mv_combined_events` - World map with computed fields (colors, tooltips, bubble sizes)
+- `mv_looker_fire_metrics` - Fire dashboard metrics with hourly auto-refresh
+- `mv_looker_earthquake_metrics` - Earthquake metrics with hourly auto-refresh
+- `v_looker_realtime_summary` - Real-time summary cards (24h/7d counts, alert status)
 
 Enable the DAG in the Airflow UI to start scheduled hourly runs.
 
@@ -199,6 +209,7 @@ bash ./start_pipeline.sh
 - Updates every 15 minutes from NASA FIRMS
 - CSV format with latitude, longitude, brightness, confidence, fire radiative power
 - Partitioned by acquisition date in Parquet
+- Spatial clustering applied (groups nearby fires into ~10km grid cells)
 
 **Earthquakes Data:**
 - Updates every minute from USGS
@@ -215,6 +226,7 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
    - Reads from Kafka topics in micro-batches (30-second intervals)
    - Applies data cleaning and validation
    - Uses `from_csv` for NASA FIRMS data to handle embedded newlines
+   - Adds `cluster_id` to fire data for spatial grouping (~10km grid cells)
    - Converts date strings to proper date types
    - Writes to Parquet with no compression for ARM64 compatibility
    - Fire data partitioned by `acq_date`, earthquakes by `event_date`
@@ -223,17 +235,21 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
 2. **dbt Transformations** (Batch processing)
    - **Staging layer**: Creates clean views from raw Parquet files
    - **Marts layer**: Aggregates data into analysis-ready tables
+   - Fire clusters are averaged by location and brightness for cleaner visualization
    - Runs via Airflow on an hourly schedule
 
 3. **Airflow Orchestration** (Hourly)
    - Executes dbt models to transform data
    - Runs data quality tests
    - Exports DuckDB tables to BigQuery via GCS
+   - Creates materialized views for Looker Studio
    - Maintains execution logs and metadata in PostgreSQL
 
 4. **BigQuery Export**
-   - Tables loaded hourly with `WRITE_TRUNCATE` mode
-   - Ready for dashboards, analytics, and reporting
+   - `combined_events` table loaded with `WRITE_TRUNCATE` (snapshot model)
+   - Other tables use `WRITE_APPEND` for incremental updates
+   - Partitioning and clustering applied for better query performance
+   - Materialized views auto-refresh hourly with computed dashboard fields
 
 ## Technical Highlights
 
@@ -263,13 +279,20 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
 - `foreachBatch` provides batch-level monitoring
 - Fault tolerance with checkpoint directories
 
+**Fire Clustering for Looker Compatibility:**
+- Spark adds `cluster_id` column using spatial grid formula: `FLOOR(lat/0.09)_FLOOR(lon/0.09)_date`
+- Groups nearby fires within ~10km radius to reduce visualization clutter
+- dbt aggregates clusters by averaging location and brightness
+- Individual earthquakes remain unclustered for precise location tracking
+- Result: Cleaner map visualizations without duplicate markers
+
 **dbt Data Models:**
 - **Sources**: Defines Parquet file locations for DuckDB to read
 - **Staging views**: Clean and standardize raw data (`stg_fires`, `stg_earthquakes`)
 - **Mart tables**: Aggregated analytics-ready tables
   - `fire_summary`: Grouped by timestamp, satellite, confidence
   - `earthquake_summary`: Grouped by hour with magnitude/depth stats
-  - `combined_events`: Unified dataset of all natural events
+  - `combined_events`: Unified dataset with clustered fires + individual earthquakes
 
 **BigQuery Integration:**
 - Concurrent export of 3 tables using ThreadPoolExecutor
@@ -277,6 +300,14 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
 - Retry logic with exponential backoff (max 5 attempts)
 - Schema autodetection from Parquet files
 - Intermediate staging via GCS for efficient loads
+- `combined_events` partitioned by `event_date` and clustered by `event_type` + `severity_level`
+
+**Materialized Views for Dashboards:**
+- Pre-computed aggregations refresh hourly automatically
+- World map view includes color coding by intensity (dark red to orange for fires, indigo to light blue for earthquakes)
+- Bubble sizes calculated dynamically based on event intensity
+- Tooltip text formatted for user-friendly display
+- Real-time summary view provides 24h/7d event counts and alert levels
 
 ## Common Issues
 
@@ -310,17 +341,13 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
 - Ensure GCP credentials JSON is valid
 - Review export script logs in Airflow task instance
 
-## What's Next
+## Recent Updates
 
-1. Connect Looker Studio to BigQuery for visualization dashboards
-2. Implement incremental dbt models for better performance
-3. Add data quality tests in dbt (uniqueness, freshness, accepted values)
-4. Split large messages in NiFi using SplitText processor
-5. Add deduplication for duplicate events
-6. Add alerting for major events (magnitude > 6 earthquakes, large fires)
-7. Implement data retention policies (archival to cold storage)
-8. Add monitoring and observability (Prometheus + Grafana)
-9. Scale Airflow with CeleryExecutor and Redis for distributed task execution
+**Latest Changes:**
+- Added materialized views for Looker Studio (world map, fire/earthquake metrics, real-time summary)
+- Implemented spatial clustering for fire data to reduce map visualization clutter
+- Added partitioning and clustering to BigQuery `combined_events` table for better query performance
+- Updated Airflow DAG with `create_materialized_views` task
 
 ## Tech Stack Summary
 

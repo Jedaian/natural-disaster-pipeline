@@ -10,3 +10,4 @@ airflow/*.pid
 airflow/*.cfg
 airflow/*.db
 airflow/*.py
+.claude/*
