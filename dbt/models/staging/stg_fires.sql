@@ -9,7 +9,8 @@ SELECT
   confidence,
   frp AS fire_radioactive_power,
   daynight,
-  event_type
+  event_type,
+  cluster_id
 FROM read_parquet('/opt/spark-data/fires/**/*.parquet')
 WHERE latitude IS NOT NULL
   AND longitude IS NOT NULL

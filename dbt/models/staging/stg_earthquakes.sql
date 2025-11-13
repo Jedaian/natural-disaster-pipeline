@@ -8,6 +8,7 @@ SELECT
     latitude,
     depth,
     event_type,
+    NULL AS cluster_id
 FROM read_parquet('/opt/spark-data/earthquakes/**/*.parquet')
 WHERE latitude IS NOT NULL
     AND longitude IS NOT NULL

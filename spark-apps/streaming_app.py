@@ -97,6 +97,13 @@ fires_df = fires_stream \
     .withColumn("event_timestamp", to_timestamp(concat_ws(' ', col('acq_date').cast("string"), lpad(col('acq_time'), 4, '0')), 'yyyy-MM-dd HHmm')) \
     .withColumn("event_type", lit("fire")) \
     .withColumn("event_id", concat_ws('_', col('satellite'), col('acq_date').cast("string"), lpad(col('acq_time'),4,'0'), col('latitude'), col('longitude'))) \
+    .withColumn("cluster_id", 
+                concat_ws("_",
+            (col("latitude") / 0.09).cast("int").cast("string"),
+            (col("longitude") / 0.09).cast("int").cast("string"),
+            col("acq_date").cast("string")
+        )
+    ) \
     .withWatermark("event_timestamp", "1 hour")
 
 earthquakes_stream = spark.readStream\
