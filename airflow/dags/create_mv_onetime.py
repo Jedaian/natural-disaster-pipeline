@@ -1,7 +1,7 @@
 import os, sys
 from datetime import datetime, timedelta
 from airflow.operators.bash import BashOperator
-from airflow.decorators import dag, task
+from airflow.decorators import dag
 
 DAGS_FOLDER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, DAGS_FOLDER)

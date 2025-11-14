@@ -6,6 +6,7 @@ config/*.json
 logs/
 airflow/temp
 airflow/dags/__pycache__/*
+airflow/scripts/__pycache__/*
 airflow/*.pid
 airflow/*.cfg
 airflow/*.db
