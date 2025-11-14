@@ -1,0 +1,91 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python cache and bytecode
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Airflow directories (mounted as volumes at runtime)
+airflow/
+logs/
+
+# DBT (mounted as volume at runtime)
+dbt/
+
+# Spark directories (mounted as volumes at runtime)
+spark-apps/
+spark-data/
+
+# Configuration files with secrets (mounted as volume at runtime)
+config/
+
+# Environment files
+*.env
+.env.*
+
+# Documentation and markdown (not needed in runtime)
+*.md
+README.md
+LICENSE
+CHANGELOG.md
+
+# Architecture diagrams/documentation
+architecture/
+
+# Docker files (not needed inside the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Shell scripts (not needed inside the image)
+*.sh
+
+# Test files
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Claude AI context
+.claude/
+
+# OS files
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Security sensitive files
+*.pem
+*.key
+*.cert
+*.crt
+credentials.json
+*-credentials.json
