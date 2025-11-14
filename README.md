@@ -12,18 +12,18 @@
 [![Google BigQuery](https://img.shields.io/badge/BigQuery-latest-4285F4?style=for-the-badge&logo=googlebigquery&logoColor=white)](https://cloud.google.com/bigquery)
 [![Redpanda](https://img.shields.io/badge/Redpanda-24.2.7-FF3C00?style=for-the-badge&logo=redpanda&logoColor=white)](https://redpanda.com)
 
-A streaming data pipeline that tracks natural disasters around the world in real-time. This project ingests fire hotspot data from NASA and earthquake data from USGS, processes it through a message broker, transforms it with Spark and dbt, orchestrates data workflows with Airflow, and exports analytics to Google BigQuery with materialized views ready for Looker Studio dashboards.
+A streaming data pipeline that tracks natural disasters around the world in real-time. I learned a lot about NiFi, Redpanda, and Spark working on this, especially around near real-time data processing. The pipeline ingests fire hotspot data from NASA and earthquake data from USGS, streams it through Redpanda, processes it with Spark, and loads it into BigQuery for dashboards.
 
 ## What This Does
 
 1. Pulls the latest fire and earthquake data from public APIs (NASA FIRMS & USGS)
-2. Streams that data through Kafka (via Redpanda)
-3. Processes it with Spark Structured Streaming (includes spatial clustering for fires)
+2. Streams that data through Redpanda (Kafka-compatible message broker)
+3. Processes it with Spark Structured Streaming every 15 minutes (includes spatial clustering for fires)
 4. Stores it in partitioned Parquet files
 5. Transforms data with dbt (staging views + aggregated marts)
-6. Orchestrates hourly pipelines with Airflow (powered by PostgreSQL)
+6. Orchestrates hourly pipelines with Airflow and cleans up old data daily
 7. Exports analytics to Google BigQuery via GCS (with partitioning and clustering)
-8. Creates materialized views automatically for Looker Studio dashboards
+8. Creates views and materialized views automatically for Looker Studio dashboards
 
 ## Architecture
 
@@ -71,10 +71,12 @@ natural-disasters-pipeline/
 ├── airflow/
 │   ├── dags/
 │   │   ├── migrate_duckdb_bq.py  # Hourly DAG for dbt transformation + BigQuery export + MV creation
-│   │   └── create_mv_onetime.py  # One-time DAG to create materialized views manually
+│   │   ├── create_mv_onetime.py  # One-time DAG to create materialized views manually
+│   │   └── data_retention.py     # Daily DAG for cleaning up old Parquet partitions
 │   ├── scripts/
 │   │   ├── export_to_bq.py       # Script to export DuckDB to BigQuery via GCS
-│   │   └── create_mv.py          # Script to create BigQuery materialized views for Looker
+│   │   ├── create_mv.py          # Script to create BigQuery materialized views for Looker
+│   │   └── cleanup_partitions.py # Script to remove old partitions (7-day retention)
 │   ├── logs/                     # Airflow execution logs
 │   ├── airflow.cfg               # Airflow configuration
 │   └── webserver_config.py       # Airflow webserver settings
@@ -155,10 +157,11 @@ docker exec -it spark-master /opt/spark/bin/spark-submit \
 The job will:
 - Consume messages from both Redpanda topics
 - Parse CSV (fires) and JSON (earthquakes)
-- Write to Parquet files every 30 seconds
+- Write to Parquet files every 15 minutes
 - Partition fire data by acquisition date
 - Use watermarks to handle late-arriving data
 - Maintain checkpoints for fault tolerance
+- Run on a 1-worker Spark cluster (1GB memory per worker)
 
 ### 6. Configure and Run Airflow
 
@@ -187,6 +190,13 @@ Access Airflow UI at http://localhost:8080 (username: `admin`, password: `admin`
    - **create_materialized_views** - Creates BigQuery materialized views independently
    - Useful for initial setup or manual recreation of views
    - `schedule_interval=None` - only runs when manually triggered
+
+3. **`dag_data_retention_cleanup`** (Daily scheduled DAG):
+   - **cleanup_partitions** - Removes old Parquet partitions to manage disk space
+   - Runs at 2 AM daily
+   - Keeps 7 days of data with a 1-day buffer (deletes partitions older than 8 days)
+   - Cleans up both fires and earthquakes datasets
+   - Logs detailed metrics about deleted partitions and space freed
 
 **BigQuery Export Process:**
 - Reads tables from DuckDB: `fire_summary`, `earthquake_summary`, `combined_events`
@@ -230,11 +240,11 @@ bash ./start_pipeline.sh
 APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → BigQuery
 ```
 
-1. **Spark Streaming** (Real-time processing)
-   - Reads from Kafka topics in micro-batches (30-second intervals)
+1. **Spark Streaming** (Near real-time processing)
+   - Reads from Kafka topics in micro-batches (15-minute intervals)
    - Applies data cleaning and validation
    - Uses `from_csv` for NASA FIRMS data to handle embedded newlines
-   - Adds `cluster_id` to fire data for spatial grouping (~10km grid cells)
+   - Adds `cluster_id` to fire data for spatial grouping (~24km grid cells)
    - Converts date strings to proper date types
    - Writes to Parquet with no compression for ARM64 compatibility
    - Fire data partitioned by `acq_date`, earthquakes by `event_date`
@@ -259,63 +269,31 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
    - Partitioning and clustering applied for better query performance
    - Materialized views auto-refresh hourly with computed dashboard fields
 
-## Technical Highlights
+## Key Technical Details
 
-**Airflow with PostgreSQL:**
-- **LocalExecutor** enables parallel task execution
-- **PostgreSQL 15** provides robust metadata storage (replacing SQLite)
-- Persistent storage with Docker volume (`postgres-airflow`)
-- Health checks ensure database availability before Airflow initialization
-- Supports concurrent task execution and better performance
+**Streaming with NiFi and Redpanda:**
+- NiFi pulls from NASA FIRMS (every 15 min) and USGS (every minute) APIs
+- Redpanda acts as a Kafka-compatible message broker between NiFi and Spark
+- Two topics: `fires-topic` and `earthquakes-topic` with 5MB message limits
 
-**CSV Parsing:**
-- Uses `from_csv` with defined schema for robust parsing
-- Handles embedded newlines in NASA FIRMS data
-- Filters out header rows and empty lines
-
-**Data Partitioning:**
-- Fire data partitioned by `acq_date` (acquisition date)
-- Earthquake data partitioned by `event_date`
-- Directory structure: `/fires/acq_date=2025-11-05/`, `/earthquakes/event_date=2025-11-05/`
-- Enables efficient time-based queries
-- DuckDB can read specific partitions when filtering by date
-
-**Stream Processing:**
-- RocksDB state store for Spark streaming checkpoints
-- Adaptive query execution for dynamic query optimization
+**Spark Structured Streaming:**
+- Processes data in 15-minute micro-batches for near real-time updates
+- Uses `from_csv` with defined schema to handle messy CSV data from NASA
 - Watermarks prevent unbounded state growth (1 hour for fires, 10 min for earthquakes)
-- `foreachBatch` provides batch-level monitoring
-- Fault tolerance with checkpoint directories
+- RocksDB state store for fault-tolerant checkpoints
+- Single-worker cluster with 1GB memory (good enough for this scale)
 
-**Fire Clustering for Looker Compatibility:**
-- Spark adds `cluster_id` column using spatial grid formula: `FLOOR(lat/0.09)_FLOOR(lon/0.09)_date`
-- Groups nearby fires within ~10km radius to reduce visualization clutter
+**Fire Clustering:**
+- Spark adds `cluster_id` using spatial grid: `FLOOR(lat/0.22)_FLOOR(lon/0.22)_date`
+- Groups nearby fires within ~24km radius to avoid cluttered maps
 - dbt aggregates clusters by averaging location and brightness
-- Individual earthquakes remain unclustered for precise location tracking
-- Result: Cleaner map visualizations without duplicate markers
+- Earthquakes stay individual for precise location tracking
 
-**dbt Data Models:**
-- **Sources**: Defines Parquet file locations for DuckDB to read
-- **Staging views**: Clean and standardize raw data (`stg_fires`, `stg_earthquakes`)
-- **Mart tables**: Aggregated analytics-ready tables
-  - `fire_summary`: Grouped by timestamp, satellite, confidence
-  - `earthquake_summary`: Grouped by hour with magnitude/depth stats
-  - `combined_events`: Unified dataset with clustered fires + individual earthquakes
-
-**BigQuery Integration:**
-- Concurrent export of 3 tables using ThreadPoolExecutor
-- Automatic dataset creation with US location
-- Retry logic with exponential backoff (max 5 attempts)
-- Schema autodetection from Parquet files
-- Intermediate staging via GCS for efficient loads
-- `combined_events` partitioned by `event_date` and clustered by `event_type` + `severity_level`
-
-**Materialized Views for Dashboards:**
-- Pre-computed aggregations refresh hourly automatically
-- World map view includes color coding by intensity (dark red to orange for fires, indigo to light blue for earthquakes)
-- Bubble sizes calculated dynamically based on event intensity
-- Tooltip text formatted for user-friendly display
-- Real-time summary view provides 24h/7d event counts and alert levels
+**Data Retention Policy:**
+- Automated cleanup runs daily at 2 AM
+- Keeps 7 days of data plus a 1-day buffer (deletes anything older than 8 days)
+- Logs metrics about deleted partitions and space freed
+- Helps manage disk space without manual intervention
 
 ## Common Issues
 
@@ -352,10 +330,10 @@ APIs → NiFi → Redpanda → Spark Streaming → Parquet → DuckDB + dbt → 
 ## Recent Updates
 
 **Latest Changes:**
-- Added materialized views for Looker Studio (world map, fire/earthquake metrics, real-time summary)
-- Implemented spatial clustering for fire data to reduce map visualization clutter
-- Added partitioning and clustering to BigQuery `combined_events` table for better query performance
-- Updated Airflow DAG with `create_materialized_views` task
+- Added data retention policy with automated daily cleanup (7-day retention + 1-day buffer)
+- Updated Spark batch processing interval to 15 minutes for both fires and earthquakes
+- Configured Spark cluster with 1GB worker memory for optimized performance
+- Created dedicated DAG and script for partition cleanup to manage disk space
 
 ## Tech Stack Summary
 

@@ -99,8 +99,8 @@ fires_df = fires_stream \
     .withColumn("event_id", concat_ws('_', col('satellite'), col('acq_date').cast("string"), lpad(col('acq_time'),4,'0'), col('latitude'), col('longitude'))) \
     .withColumn("cluster_id", 
                 concat_ws("_",
-            (col("latitude") / 0.09).cast("int").cast("string"),
-            (col("longitude") / 0.09).cast("int").cast("string"),
+            (col("latitude") / 0.22).cast("int").cast("string"),
+            (col("longitude") / 0.22).cast("int").cast("string"),
             col("acq_date").cast("string")
         )
     ) \
@@ -155,7 +155,7 @@ fires_query = fires_df \
     .writeStream \
     .foreachBatch(writes_fire_batch) \
     .option("checkpointLocation", "/opt/spark-data/checkpoints/fires") \
-    .trigger(processingTime='30 seconds') \
+    .trigger(processingTime='15 minutes') \
     .start()
 
 def writes_earthquake_batch(df, batch_id):
@@ -171,7 +171,7 @@ earthquakes_query = earthquakes_df \
     .writeStream \
     .foreachBatch(writes_earthquake_batch) \
     .option("checkpointLocation", "/opt/spark-data/checkpoints/earthquakes") \
-    .trigger(processingTime='30 seconds') \
+    .trigger(processingTime='15 minutes') \
     .start()
 
 print("Streaming queries started...")
